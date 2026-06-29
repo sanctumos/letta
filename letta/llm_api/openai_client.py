@@ -378,6 +378,31 @@ class OpenAIClient(LLMClientBase):
         kwargs = {"api_key": api_key, "base_url": embedding_config.embedding_endpoint}
         return kwargs
 
+    async def _prepare_client_kwargs_embedding_async(self, embedding_config: EmbeddingConfig) -> dict:
+        """Async embedding auth — use from request_embeddings (BYOK DB is async-safe)."""
+        api_key = None
+        endpoint = embedding_config.embedding_endpoint or ""
+
+        if embedding_config.handle and "/" in embedding_config.handle:
+            provider_name = embedding_config.handle.split("/", 1)[0]
+            try:
+                from letta.services.provider_manager import ProviderManager
+
+                api_key = await ProviderManager().get_override_key_async(provider_name, actor=self.actor)
+                if api_key == "":
+                    api_key = None
+            except Exception:
+                api_key = None
+
+        if not api_key and "venice.ai" in endpoint:
+            api_key = os.environ.get("VENICE_API_KEY")
+
+        if not api_key:
+            api_key = model_settings.openai_api_key or os.environ.get("OPENAI_API_KEY")
+
+        api_key = api_key or "DUMMY_API_KEY"
+        return {"api_key": api_key, "base_url": embedding_config.embedding_endpoint}
+
     async def _prepare_client_kwargs_async(self, llm_config: LLMConfig) -> dict:
         api_key, _, _ = await self.get_byok_overrides_async(llm_config)
         has_byok_key = api_key is not None  # Track if we got a BYOK key
@@ -1056,7 +1081,7 @@ class OpenAIClient(LLMClientBase):
         # Use valid_inputs instead of inputs for processing
         inputs = valid_inputs
 
-        kwargs = self._prepare_client_kwargs_embedding(embedding_config)
+        kwargs = await self._prepare_client_kwargs_embedding_async(embedding_config)
         client = AsyncOpenAI(**kwargs)
 
         # track results by original index to maintain order

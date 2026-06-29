@@ -1296,3 +1296,31 @@ def test_prepare_client_kwargs_embedding_openai_fallback(monkeypatch):
 
     kwargs = client._prepare_client_kwargs_embedding(config)
     assert kwargs["api_key"] == "sk-openai-test"
+
+
+@pytest.mark.asyncio
+async def test_prepare_client_kwargs_embedding_async_byok_before_venice_env(monkeypatch):
+    """Async path: BYOK provider key wins over VENICE_API_KEY (runtime embed path)."""
+    from letta.llm_api.openai_client import OpenAIClient
+    from letta.schemas.embedding_config import EmbeddingConfig
+
+    monkeypatch.setenv("VENICE_API_KEY", "VENICE-INFERENCE-KEY-env")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    client = OpenAIClient()
+    config = EmbeddingConfig(
+        embedding_endpoint_type="openai",
+        embedding_endpoint="https://api.venice.ai/api/v1",
+        embedding_model="text-embedding-3-small",
+        embedding_dim=1536,
+        handle="venice/text-embedding-3-small",
+    )
+
+    with patch(
+        "letta.services.provider_manager.ProviderManager.get_override_key_async",
+        new_callable=AsyncMock,
+        return_value="VENICE-BYOK-from-db",
+    ):
+        kwargs = await client._prepare_client_kwargs_embedding_async(config)
+
+    assert kwargs["api_key"] == "VENICE-BYOK-from-db"

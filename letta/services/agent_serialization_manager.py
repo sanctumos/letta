@@ -636,7 +636,7 @@ class AgentSerializationManager:
                 elif should_use_pinecone():
                     embedder = PineconeEmbedder(embedding_config=embedder_config)
                 else:
-                    embedder = OpenAIEmbedder(embedding_config=embedder_config)
+                    embedder = OpenAIEmbedder(embedding_config=embedder_config, actor=actor)
                 file_processor = FileProcessor(
                     file_parser=self.file_parser,
                     embedder=embedder,

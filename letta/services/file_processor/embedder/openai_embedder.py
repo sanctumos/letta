@@ -23,7 +23,7 @@ _GLOBAL_EMBEDDING_SEMAPHORE = asyncio.Semaphore(3)
 class OpenAIEmbedder(BaseEmbedder):
     """OpenAI-based embedding generation"""
 
-    def __init__(self, embedding_config: Optional[EmbeddingConfig] = None):
+    def __init__(self, embedding_config: Optional[EmbeddingConfig] = None, actor: Optional[User] = None):
         super().__init__()
         # OpenAI embedder uses the native vector db (PostgreSQL)
         # self.vector_db_type already set to VectorDBProvider.NATIVE by parent
@@ -41,7 +41,7 @@ class OpenAIEmbedder(BaseEmbedder):
             LLMClient.create(
                 provider_type=ProviderType.openai,
                 put_inner_thoughts_first=False,
-                actor=None,  # Not necessary
+                actor=actor,
             ),
         )
 

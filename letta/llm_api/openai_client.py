@@ -345,15 +345,17 @@ class OpenAIClient(LLMClientBase):
         return kwargs
 
     def _prepare_client_kwargs_embedding(self, embedding_config: EmbeddingConfig) -> dict:
+        """Resolve API key for embeddings — same precedence as chat (_prepare_client_kwargs).
+
+        BYOK provider table first (optional Venice or any other BYOK host), then
+        provider-specific env (VENICE_API_KEY only when the endpoint is Venice),
+        then OpenAI env for the default openai/* @ api.openai.com path.
+        """
         api_key = None
         endpoint = embedding_config.embedding_endpoint or ""
 
-        # Venice-hosted embeddings: env key is the normal path on Sanctum hosts (~/.letta/.env).
-        if "venice.ai" in endpoint:
-            api_key = os.environ.get("VENICE_API_KEY")
-
         # BYOK providers (e.g. venice/text-embedding-3-small) store keys in the provider table.
-        if not api_key and embedding_config.handle and "/" in embedding_config.handle:
+        if embedding_config.handle and "/" in embedding_config.handle:
             provider_name = embedding_config.handle.split("/", 1)[0]
             try:
                 from letta.services.provider_manager import ProviderManager
@@ -363,6 +365,10 @@ class OpenAIClient(LLMClientBase):
                     api_key = None
             except Exception:
                 api_key = None
+
+        # Venice-hosted embeddings: env fallback when BYOK did not resolve (Sanctum ~/.letta/.env).
+        if not api_key and "venice.ai" in endpoint:
+            api_key = os.environ.get("VENICE_API_KEY")
 
         if not api_key:
             api_key = model_settings.openai_api_key or os.environ.get("OPENAI_API_KEY")

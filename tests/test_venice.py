@@ -1232,8 +1232,8 @@ class TestVeniceMultimodalFiltering:
 # ===========================================================================
 
 
-def test_prepare_client_kwargs_embedding_prefers_venice_env(monkeypatch):
-    """Venice embedding endpoint uses VENICE_API_KEY before OpenAI fallback."""
+def test_prepare_client_kwargs_embedding_venice_env_when_no_byok(monkeypatch):
+    """Venice endpoint uses VENICE_API_KEY when BYOK provider lookup fails."""
     from letta.llm_api.openai_client import OpenAIClient
     from letta.schemas.embedding_config import EmbeddingConfig
 
@@ -1252,6 +1252,29 @@ def test_prepare_client_kwargs_embedding_prefers_venice_env(monkeypatch):
     kwargs = client._prepare_client_kwargs_embedding(config)
     assert kwargs["api_key"] == "VENICE-INFERENCE-KEY-test"
     assert kwargs["base_url"] == "https://api.venice.ai/api/v1"
+
+
+def test_prepare_client_kwargs_embedding_byok_before_venice_env(monkeypatch):
+    """BYOK provider key wins over VENICE_API_KEY — same precedence as chat."""
+    from letta.llm_api.openai_client import OpenAIClient
+    from letta.schemas.embedding_config import EmbeddingConfig
+
+    monkeypatch.setenv("VENICE_API_KEY", "VENICE-INFERENCE-KEY-env")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    client = OpenAIClient()
+    config = EmbeddingConfig(
+        embedding_endpoint_type="openai",
+        embedding_endpoint="https://api.venice.ai/api/v1",
+        embedding_model="text-embedding-3-small",
+        embedding_dim=1536,
+        handle="venice/text-embedding-3-small",
+    )
+
+    with patch("letta.services.provider_manager.ProviderManager.get_override_key", return_value="VENICE-BYOK-from-db"):
+        kwargs = client._prepare_client_kwargs_embedding(config)
+
+    assert kwargs["api_key"] == "VENICE-BYOK-from-db"
 
 
 def test_prepare_client_kwargs_embedding_openai_fallback(monkeypatch):

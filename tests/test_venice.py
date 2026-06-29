@@ -1225,3 +1225,51 @@ class TestVeniceMultimodalFiltering:
         assert result[0]["role"] == "user"
         assert result[0]["name"] == "test_user"
         assert len(result[0]["content"]) == 1
+
+
+# ===========================================================================
+# 5) Venice embedding client kwargs
+# ===========================================================================
+
+
+def test_prepare_client_kwargs_embedding_prefers_venice_env(monkeypatch):
+    """Venice embedding endpoint uses VENICE_API_KEY before OpenAI fallback."""
+    from letta.llm_api.openai_client import OpenAIClient
+    from letta.schemas.embedding_config import EmbeddingConfig
+
+    monkeypatch.setenv("VENICE_API_KEY", "VENICE-INFERENCE-KEY-test")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    client = OpenAIClient()
+    config = EmbeddingConfig(
+        embedding_endpoint_type="openai",
+        embedding_endpoint="https://api.venice.ai/api/v1",
+        embedding_model="text-embedding-3-small",
+        embedding_dim=1536,
+        handle="venice/text-embedding-3-small",
+    )
+
+    kwargs = client._prepare_client_kwargs_embedding(config)
+    assert kwargs["api_key"] == "VENICE-INFERENCE-KEY-test"
+    assert kwargs["base_url"] == "https://api.venice.ai/api/v1"
+
+
+def test_prepare_client_kwargs_embedding_openai_fallback(monkeypatch):
+    """Non-Venice endpoints still use OPENAI_API_KEY."""
+    from letta.llm_api.openai_client import OpenAIClient
+    from letta.schemas.embedding_config import EmbeddingConfig
+
+    monkeypatch.delenv("VENICE_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-test")
+
+    client = OpenAIClient()
+    config = EmbeddingConfig(
+        embedding_endpoint_type="openai",
+        embedding_endpoint="https://api.openai.com/v1",
+        embedding_model="text-embedding-3-small",
+        embedding_dim=1536,
+        handle="openai/text-embedding-3-small",
+    )
+
+    kwargs = client._prepare_client_kwargs_embedding(config)
+    assert kwargs["api_key"] == "sk-openai-test"

@@ -345,7 +345,28 @@ class OpenAIClient(LLMClientBase):
         return kwargs
 
     def _prepare_client_kwargs_embedding(self, embedding_config: EmbeddingConfig) -> dict:
-        api_key = model_settings.openai_api_key or os.environ.get("OPENAI_API_KEY")
+        api_key = None
+        endpoint = embedding_config.embedding_endpoint or ""
+
+        # Venice-hosted embeddings: env key is the normal path on Sanctum hosts (~/.letta/.env).
+        if "venice.ai" in endpoint:
+            api_key = os.environ.get("VENICE_API_KEY")
+
+        # BYOK providers (e.g. venice/text-embedding-3-small) store keys in the provider table.
+        if not api_key and embedding_config.handle and "/" in embedding_config.handle:
+            provider_name = embedding_config.handle.split("/", 1)[0]
+            try:
+                from letta.services.provider_manager import ProviderManager
+
+                api_key = ProviderManager().get_override_key(provider_name, actor=self.actor)
+                if api_key == "":
+                    api_key = None
+            except Exception:
+                api_key = None
+
+        if not api_key:
+            api_key = model_settings.openai_api_key or os.environ.get("OPENAI_API_KEY")
+
         # supposedly the openai python client requires a dummy API key
         api_key = api_key or "DUMMY_API_KEY"
         kwargs = {"api_key": api_key, "base_url": embedding_config.embedding_endpoint}

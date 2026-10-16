@@ -459,6 +459,7 @@ async def list_mcp_tools_by_server(
 
 
 @router.post("/mcp/servers/{mcp_server_name}/resync", operation_id="resync_mcp_server_tools")
+@router.post("/mcp/servers/{mcp_server_name}/sync", operation_id="sync_mcp_server_tools")
 async def resync_mcp_server_tools(
     mcp_server_name: str,
     server: SyncServer = Depends(get_letta_server),
@@ -473,6 +474,9 @@ async def resync_mcp_server_tools(
     4. Adding new tools from the server
 
     Returns a summary of changes made.
+
+    `/sync` is the older path. It used to fall through to "add a tool named sync" and return 500.
+    It now runs this same resync.
     """
     actor = await server.user_manager.get_actor_or_default_async(actor_id=headers.actor_id)
     result = await server.mcp_manager.resync_mcp_server_tools(mcp_server_name=mcp_server_name, actor=actor, agent_id=agent_id)

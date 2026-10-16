@@ -114,6 +114,21 @@ def test_llm_response_helpers_flag_failed_tools():
     assert parallel_tool and parallel_tool[0].is_err is True
 
 
+def test_sync_route_calls_resync_not_add_tool():
+    from letta.server.rest_api.routers.v1.tools import router
+
+    post_endpoints = {}
+    for route in router.routes:
+        methods = getattr(route, "methods", None) or set()
+        if "POST" not in methods:
+            continue
+        post_endpoints[route.path] = route.endpoint.__name__
+
+    assert post_endpoints["/tools/mcp/servers/{mcp_server_name}/sync"] == "resync_mcp_server_tools"
+    assert post_endpoints["/tools/mcp/servers/{mcp_server_name}/resync"] == "resync_mcp_server_tools"
+    assert post_endpoints["/tools/mcp/servers/{mcp_server_name}/{mcp_tool_name}"] == "add_mcp_tool"
+
+
 def test_list_all_for_organization_empty_page_stops():
     async def fake_list(cls, db_session, organization_id, limit, ascending, after=None, **kwargs):
         return []

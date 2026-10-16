@@ -57,6 +57,14 @@ def test_slash_label_is_rejected_and_plain_label_round_trips():
         assert status == 200
 
 
+def test_sync_alias_returns_resync_summary():
+    status, body = _request("POST", "/v1/tools/mcp/servers/qc-page-flag/sync")
+    assert status == 200, body
+    assert body.get("added") == []
+    skipped = body.get("skipped") or []
+    assert any(item.get("name") == "qc_unhealable" for item in skipped), skipped
+
+
 def test_imported_playground_core_memory_is_readable():
     status, agents = _request("GET", "/v1/agents/?limit=100")
     assert status == 200

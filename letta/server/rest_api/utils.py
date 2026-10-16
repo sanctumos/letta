@@ -481,6 +481,7 @@ def create_letta_messages_from_llm_response(
             created_at=get_utc_time(),
             name=function_name,
             batch_item_id=llm_batch_item_id,
+            is_err=tool_execution_result.status == "error",
             tool_returns=[
                 ToolReturn(
                     tool_call_id=tool_call_id,
@@ -616,6 +617,7 @@ def create_parallel_tool_messages_from_llm_response(
         name=tool_call_specs[0].get("name") if tool_call_specs else None,  # For legacy reasons, set to first one
         tool_returns=tool_returns,
         run_id=run_id,
+        is_err=any(result.status == "error" for result in tool_execution_results),
     )
     if step_id:
         tool_message.step_id = step_id

@@ -1930,13 +1930,14 @@ class Message(BaseMessage):
                         )
                     # Convert to Anthropic format (supports images)
                     tool_result_content = self._tool_return_to_anthropic_content(tool_return.func_response, tool_return_truncation_chars)
-                    content.append(
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": resolved_tool_call_id,
-                            "content": tool_result_content,
-                        }
-                    )
+                    tool_result = {
+                        "type": "tool_result",
+                        "tool_use_id": resolved_tool_call_id,
+                        "content": tool_result_content,
+                    }
+                    if self.is_err or getattr(tool_return, "status", None) == "error":
+                        tool_result["is_error"] = True
+                    content.append(tool_result)
             if content:
                 anthropic_message = {
                     "role": "user",
@@ -1951,11 +1952,11 @@ class Message(BaseMessage):
                 anthropic_message = {
                     "role": "user",  # NOTE: diff
                     "content": [
-                        # TODO support error types etc
                         {
                             "type": "tool_result",
                             "tool_use_id": self.tool_call_id,
                             "content": legacy_content,
+                            **({"is_error": True} if self.is_err else {}),
                         }
                     ],
                 }

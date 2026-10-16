@@ -147,7 +147,34 @@ class OpenAIProvider(Provider):
         Note: we intentionally do not attempt to fetch embedding models from the remote endpoint here.
         The OpenAI "models" list does not reliably expose embedding metadata needed for filtering,
         and in tests we frequently point OPENAI_BASE_URL at a local mock server.
+
+        Venice's /models list is chat-only (every row type=text). The embeddings
+        route is OpenAI-compatible. Live check 2026-10-16: text-embedding-3-small
+        is 1536, text-embedding-3-large is 3072, text-embedding-ada-002 is 1024
+        (not the OpenAI 1536). Omit ada-002 for Venice so archival memory does
+        not store vectors at the wrong width.
         """
+        if "venice.ai" in self.base_url:
+            return [
+                EmbeddingConfig(
+                    embedding_model="text-embedding-3-small",
+                    embedding_endpoint_type="openai",
+                    embedding_endpoint=self.base_url,
+                    embedding_dim=1536,
+                    embedding_chunk_size=DEFAULT_EMBEDDING_CHUNK_SIZE,
+                    handle=self.get_handle("text-embedding-3-small", is_embedding=True, base_name="openai-proxy"),
+                    batch_size=DEFAULT_EMBEDDING_BATCH_SIZE,
+                ),
+                EmbeddingConfig(
+                    embedding_model="text-embedding-3-large",
+                    embedding_endpoint_type="openai",
+                    embedding_endpoint=self.base_url,
+                    embedding_dim=3072,
+                    embedding_chunk_size=DEFAULT_EMBEDDING_CHUNK_SIZE,
+                    handle=self.get_handle("text-embedding-3-large", is_embedding=True, base_name="openai-proxy"),
+                    batch_size=DEFAULT_EMBEDDING_BATCH_SIZE,
+                ),
+            ]
 
         return [
             EmbeddingConfig(

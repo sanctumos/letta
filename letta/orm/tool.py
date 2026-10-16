@@ -59,3 +59,31 @@ class Tool(SqlalchemyBase, OrganizationMixin, ProjectMixin):
     metadata_: Mapped[Optional[dict]] = mapped_column(JSON, default=lambda: {}, doc="A dictionary of additional metadata for the tool.")
     # relationships
     organization: Mapped["Organization"] = relationship("Organization", back_populates="tools", lazy="selectin")
+
+
+async def list_all_for_organization(db_session, organization_id: str, page_size: int = 200) -> List["Tool"]:
+    """Page through every tool in an org.
+
+    SqlalchemyBase.list_async defaults to 50 rows. MCP resync uses this so a
+    server is not diffed against only the first page.
+    """
+    collected: List[Tool] = []
+    after = None
+    while True:
+        kwargs = {
+            "db_session": db_session,
+            "organization_id": organization_id,
+            "limit": page_size,
+            "ascending": True,
+        }
+        if after is not None:
+            kwargs["after"] = after
+        page = await Tool.list_async(**kwargs)
+        if not page:
+            break
+        collected.extend(page)
+        last_id = page[-1].id
+        if len(page) < page_size or last_id == after:
+            break
+        after = last_id
+    return collected

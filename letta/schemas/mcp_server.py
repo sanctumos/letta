@@ -280,12 +280,20 @@ class MCPOAuthSessionUpdate(BaseMCPOAuth):
     status: Optional[OAuthSessionStatus] = Field(None, description="Session status")
 
 
+class MCPSkippedTool(LettaBase):
+    """An MCP tool left unregistered because its schema stayed invalid after normalization."""
+
+    name: str = Field(..., description="Tool name")
+    reasons: List[str] = Field(default_factory=list, description="Why the schema was rejected")
+
+
 class MCPServerResyncResult(LettaBase):
     """Result of resyncing MCP server tools."""
 
     deleted: List[str] = Field(default_factory=list, description="List of deleted tool names")
     updated: List[str] = Field(default_factory=list, description="List of updated tool names")
     added: List[str] = Field(default_factory=list, description="List of added tool names")
+    skipped: List[MCPSkippedTool] = Field(default_factory=list, description="Tools not added because their schema stayed invalid")
 
 
 class ToolExecuteRequest(LettaBase):

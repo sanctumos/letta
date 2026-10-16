@@ -468,6 +468,15 @@ def create_application() -> "FastAPI":
             content={"detail": detail},
         )
 
+    async def concurrent_update_error_handler(request: Request, exc: ConcurrentUpdateError):
+        # Optimistic lock loss is expected when cron and a request touch the same block.
+        # Keep the 409 and CONCURRENT_UPDATE payload; do not dump a traceback.
+        logger.warning("%s", exc)
+        content = {"detail": str(exc)}
+        if isinstance(exc.details, dict):
+            content.update(exc.details)
+        return JSONResponse(status_code=409, content=content)
+
     _error_handler_400 = partial(error_handler_with_code, code=400)
     _error_handler_404 = partial(error_handler_with_code, code=404)
     _error_handler_404_agent = partial(_error_handler_404, detail="Agent not found")
@@ -507,7 +516,7 @@ def create_application() -> "FastAPI":
     app.add_exception_handler(ForeignKeyConstraintViolationError, _error_handler_409)
     app.add_exception_handler(UniqueConstraintViolationError, _error_handler_409)
     app.add_exception_handler(IntegrityError, _error_handler_409)
-    app.add_exception_handler(ConcurrentUpdateError, _error_handler_409)
+    app.add_exception_handler(ConcurrentUpdateError, concurrent_update_error_handler)
     app.add_exception_handler(ConversationBusyError, _error_handler_409)
     app.add_exception_handler(PendingApprovalError, _error_handler_409)
     app.add_exception_handler(NoActiveRunsToCancelError, _error_handler_409)

@@ -2,6 +2,7 @@ import asyncio
 import json
 import traceback
 from datetime import datetime, timezone
+from urllib.parse import unquote
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from fastapi import APIRouter, Body, Depends, File, Form, Header, HTTPException, Query, Request, UploadFile, status
@@ -1102,7 +1103,35 @@ async def retrieve_agent_memory(
     return await server.get_agent_memory_async(agent_id=agent_id, actor=actor)
 
 
-@router.get("/{agent_id}/core-memory/blocks/{block_label}", response_model=BlockResponse, operation_id="retrieve_core_memory_block")
+@router.patch("/{agent_id}/core-memory/blocks/attach/{block_id}", response_model=AgentState, operation_id="attach_core_memory_block")
+async def attach_block_to_agent(
+    block_id: BlockId,
+    agent_id: AgentId,
+    server: "SyncServer" = Depends(get_letta_server),
+    headers: HeaderParams = Depends(get_headers),
+):
+    """
+    Attach a core memory block to an agent.
+    """
+    actor = await server.user_manager.get_actor_or_default_async(actor_id=headers.actor_id)
+    return await server.agent_manager.attach_block_async(agent_id=agent_id, block_id=block_id, actor=actor)
+
+
+@router.patch("/{agent_id}/core-memory/blocks/detach/{block_id}", response_model=AgentState, operation_id="detach_core_memory_block")
+async def detach_block_from_agent(
+    block_id: BlockId,
+    agent_id: AgentId,
+    server: "SyncServer" = Depends(get_letta_server),
+    headers: HeaderParams = Depends(get_headers),
+):
+    """
+    Detach a core memory block from an agent.
+    """
+    actor = await server.user_manager.get_actor_or_default_async(actor_id=headers.actor_id)
+    return await server.agent_manager.detach_block_async(agent_id=agent_id, block_id=block_id, actor=actor)
+
+
+@router.get("/{agent_id}/core-memory/blocks/{block_label:path}", response_model=BlockResponse, operation_id="retrieve_core_memory_block")
 async def retrieve_block_for_agent(
     block_label: str,
     agent_id: AgentId,
@@ -1111,8 +1140,13 @@ async def retrieve_block_for_agent(
 ):
     """
     Retrieve a core memory block from an agent.
+
+    ``:path`` keeps labels that already contain ``/`` addressable. New labels
+    are rejected at create time. Attach and detach are registered above so
+    those static segments are not swallowed by this path.
     """
     actor = await server.user_manager.get_actor_or_default_async(actor_id=headers.actor_id)
+    block_label = unquote(block_label)
 
     return await server.agent_manager.get_block_with_label_async(agent_id=agent_id, block_label=block_label, actor=actor)
 
@@ -1149,7 +1183,7 @@ async def list_blocks_for_agent(
     )
 
 
-@router.patch("/{agent_id}/core-memory/blocks/{block_label}", response_model=BlockResponse, operation_id="modify_core_memory_block")
+@router.patch("/{agent_id}/core-memory/blocks/{block_label:path}", response_model=BlockResponse, operation_id="modify_core_memory_block")
 async def modify_block_for_agent(
     block_label: str,
     agent_id: AgentId,
@@ -1161,6 +1195,7 @@ async def modify_block_for_agent(
     Updates a core memory block of an agent.
     """
     actor = await server.user_manager.get_actor_or_default_async(actor_id=headers.actor_id)
+    block_label = unquote(block_label)
 
     block = await server.agent_manager.modify_block_by_label_async(
         agent_id=agent_id, block_label=block_label, block_update=block_update, actor=actor
@@ -1170,34 +1205,6 @@ async def modify_block_for_agent(
     await server.agent_manager.rebuild_system_prompt_async(agent_id=agent_id, actor=actor, force=True, update_timestamp=False)
 
     return block
-
-
-@router.patch("/{agent_id}/core-memory/blocks/attach/{block_id}", response_model=AgentState, operation_id="attach_core_memory_block")
-async def attach_block_to_agent(
-    block_id: BlockId,
-    agent_id: AgentId,
-    server: "SyncServer" = Depends(get_letta_server),
-    headers: HeaderParams = Depends(get_headers),
-):
-    """
-    Attach a core memory block to an agent.
-    """
-    actor = await server.user_manager.get_actor_or_default_async(actor_id=headers.actor_id)
-    return await server.agent_manager.attach_block_async(agent_id=agent_id, block_id=block_id, actor=actor)
-
-
-@router.patch("/{agent_id}/core-memory/blocks/detach/{block_id}", response_model=AgentState, operation_id="detach_core_memory_block")
-async def detach_block_from_agent(
-    block_id: BlockId,
-    agent_id: AgentId,
-    server: "SyncServer" = Depends(get_letta_server),
-    headers: HeaderParams = Depends(get_headers),
-):
-    """
-    Detach a core memory block from an agent.
-    """
-    actor = await server.user_manager.get_actor_or_default_async(actor_id=headers.actor_id)
-    return await server.agent_manager.detach_block_async(agent_id=agent_id, block_id=block_id, actor=actor)
 
 
 @router.patch("/{agent_id}/archives/attach/{archive_id}", response_model=None, operation_id="attach_archive_to_agent")

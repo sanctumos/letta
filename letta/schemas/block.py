@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, List, Optional
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from letta.constants import CORE_MEMORY_BLOCK_CHAR_LIMIT, DEFAULT_HUMAN_BLOCK_DESCRIPTION, DEFAULT_PERSONA_BLOCK_DESCRIPTION
 from letta.schemas.enums import PrimitiveType
@@ -162,7 +162,7 @@ class BlockUpdate(BaseBlock):
 class CreateBlock(BaseBlock):
     """Create a block"""
 
-    label: str = Field(..., description="Label of the block.")
+    label: str = Field(..., description="Label of the block. Slashes are rejected so the label stays addressable in a URL path.")
     limit: int = Field(CORE_MEMORY_BLOCK_CHAR_LIMIT, description="Character limit of the block.")
     value: str = Field(..., description="Value of the block.")
 
@@ -173,6 +173,13 @@ class CreateBlock(BaseBlock):
 
     # tags
     tags: Optional[List[str]] = Field(None, description="The tags to associate with the block.")
+
+    @field_validator("label")
+    @classmethod
+    def label_must_not_contain_slash(cls, value: str) -> str:
+        if "/" in value:
+            raise ValueError("Block label cannot contain '/'. Existing slash labels can still be read with a URL-encoded path.")
+        return value
 
     @model_validator(mode="before")
     @classmethod

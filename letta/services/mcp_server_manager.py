@@ -24,7 +24,7 @@ from letta.log import get_logger
 from letta.orm.errors import NoResultFound
 from letta.orm.mcp_oauth import MCPOAuth, OAuthSessionStatus
 from letta.orm.mcp_server import MCPServer as MCPServerModel, MCPTools as MCPToolsModel
-from letta.orm.tool import Tool as ToolModel
+from letta.orm.tool import Tool as ToolModel, list_all_for_organization
 from letta.schemas.mcp import (
     MCPOAuthSession,
     MCPOAuthSessionCreate,
@@ -317,7 +317,7 @@ class MCPServerManager:
         async with db_registry.async_session() as session:
             # Query for tools with MCP metadata matching this server
             # Using JSON path query to filter by metadata
-            persisted_tools = await ToolModel.list_async(
+            persisted_tools = await list_all_for_organization(
                 db_session=session,
                 organization_id=actor.organization_id,
             )
@@ -336,6 +336,7 @@ class MCPServerManager:
             deleted_tools = []
             updated_tools = []
             added_tools = []
+            skipped_tools = []
 
             # 1. Delete tools that no longer exist on the server
             for tool_name, persisted_tool in persisted_tool_map.items():
@@ -369,11 +370,22 @@ class MCPServerManager:
                     updated_tools.append(tool_name)
                     logger.info(f"Updated MCP tool {tool_name} with new schema from server {mcp_server_name}")
             else:
-                # Add new tool
-                # Skip INVALID tools
+                # Add new tool. list_mcp_server_tools already normalizes once.
+                # Try the same second pass add_tool_from_mcp_server uses before giving up.
                 if current_tool.health and current_tool.health.status == "INVALID":
+                    try:
+                        normalized_schema = normalize_mcp_schema(current_tool.inputSchema)
+                        health_status, health_reasons = validate_complete_json_schema(normalized_schema)
+                        current_tool.inputSchema = normalized_schema
+                        current_tool.health.status = health_status.value
+                        current_tool.health.reasons = health_reasons
+                    except Exception as e:
+                        logger.warning(f"Failed to normalize schema for tool {tool_name} from MCP server {mcp_server_name}: {e}")
+                if current_tool.health and current_tool.health.status == "INVALID":
+                    reasons = list(current_tool.health.reasons or [])
+                    skipped_tools.append({"name": tool_name, "reasons": reasons})
                     logger.warning(
-                        f"Skipping invalid tool {tool_name} from MCP server {mcp_server_name}: {', '.join(current_tool.health.reasons)}"
+                        f"Skipping invalid tool {tool_name} from MCP server {mcp_server_name}: {', '.join(reasons)}"
                     )
                     continue
 
@@ -392,6 +404,7 @@ class MCPServerManager:
             deleted=deleted_tools,
             updated=updated_tools,
             added=added_tools,
+            skipped=skipped_tools,
         )
 
     @enforce_types

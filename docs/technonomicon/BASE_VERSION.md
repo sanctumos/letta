@@ -50,6 +50,7 @@ Letta HTTP API: `127.0.0.1:8284` (Broca and bridges depend on this surface — s
 
 ## Policy
 
+- **Brotli (HTTP2Shell / CVE-2026-111497):** `pyproject.toml` requires **`brotli>=1.2.1`**. Do not revert to `>=1.1.0` — 1.0.3–1.2.0 are RCE. Existing installs: `uv lock --upgrade-package brotli` then restart Letta so the old `.so` is not left mapped.
 - **Do not** track `letta-ai/letta` `main` post-deprecation for server architecture.
 - **Do** cherry-pick provider/model fixes at the `llm_api` seam when safe.
 - **Issue filing:** `technonomicon-lore/letta` (see Tasks doc #680).
